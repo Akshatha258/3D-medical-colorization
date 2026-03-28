@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🧠 3-D Brain MRI Visualizer</title>
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+   RESET & DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════ */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Core palette */
+            --bg-root: #070b14;
+            --bg-panel: #0d1220;
+            --bg-card: #131929;
+            --bg-hover: #192035;
+            --border: #1e2a42;
+            --border-lo: #141e30;
+
+            /* Text */
+            --txt-hi: #e8edf5;
+            --txt-mid: #7a90b8;
+            --txt-lo: #3a4d6e;
+
+            /* Plane accent colours (medical standard) */
+            --axial: #3b7dff;
+            /* Blue   – transverse  */
+            --coronal: #21c96e;
+            /* Green  – frontal     */
+            --sagittal: #f04040;
+            /* Red    – lateral     */
+
+            /* UI */
+            --accent: #5b6eff;
+            --accent-glow: rgba(91, 110, 255, 0.25);
+            --success: #21c96e;
+            --warning: #f5a623;
+            --danger: #f04040;
+
+            /* Sizes */
+            --bar-h: 52px;
+            --status-h: 28px;
+            --ortho-w: 360px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-root);
+            color: var(--txt-hi);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+   TOP BAR
+   ═══════════════════════════════════════════════════════════════ */
+        .topbar {
+            height: var(--bar-h);
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 18px;
+            gap: 20px;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .brand-icon {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #4c6aff, #9b59ff);
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 16px rgba(91, 110, 255, .35);
+        }
+
+        .brand-text {
+            line-height: 1.2;
+        }
+
+        .brand-name {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: .2px;
+        }
+
+        .brand-sub {
+            font-size: 10px;
+            color: var(--txt-mid);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .topbar-spacer {
+            flex: 1;
+        }
+
+        /* Segmented mode toggle */
+        .seg-ctrl {
+            display: flex;
+            background: var(--bg-root);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .seg-btn {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .18s;
+            background: transparent;
+            color: var(--txt-mid);
+            letter-spacing: .4px;
+        }
+
+        .seg-btn.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Plane visibility toggles */
+        .vis-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .vis-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: 1.5px solid currentColor;
+            background: transparent;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all .15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .vis-btn.active {
+            opacity: 1;
+        }
+
+        .vis-btn:not(.active) {
+            opacity: .35;
+        }
+
+        .vis-btn.ax {
+            color: var(--axial);
+        }
+
+        .vis-btn.co {
+            color: var(--coronal);
+        }
+
+        .vis-btn.sa {
+            color: var(--sagittal);
+        }
+
+        /* Chips / badges */
+        .chip {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .chip-neutral {
+            color: var(--txt-mid);
+            border-color: var(--border);
+            background: rgba(30, 42, 66, .5);
+        }
+
+        .chip-ok {
+            color: var(--success);
+            border-color: rgba(33, 201, 110, .3);
+            background: rgba(33, 201, 110, .1);
+        }
+
+        .chip-warn {
+            color: var(--warning);
+            border-color: rgba(245, 166, 35, .3);
+            background: rgba(245, 166, 35, .1);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+   MAIN LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+        .workspace {
+            display: flex;
+            height: calc(100vh - var(--bar-h) - var(--status-h));
+            overflow: hidden;
+        }
+
+        /* ─── 3-D Viewer ─────────────────────────────────────────────── */
+        .panel3d {
+            flex: 1;
+            position: relative;
+            background: var(--bg-root);
+            overflow: hidden;
+        }
+
+        #canvas3d {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        #canvas3d:active {
+            cursor: grabbing;
+        }
+
+        .overlay-tl {
+            position: absolute;
+            top: 12px;
+            left: 14px;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-tag {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--txt-mid);
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            background: rgba(7, 11, 20, .7);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 3px 8px;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Axis legend */
+        .axis-legend {
+            position: absolute;
+            bottom: 14px;
+            left: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+        }
+
+        .axis-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .5px;
+        }
+
+        .axis-line {
+            width: 18px;
+            height: 2px;
+            border-radius: 1px;
+        }
+
+        /* Mouse hints */
+        .hints {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 14px;
+            background: rgba(7, 11, 20, .8);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 16px;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        }
+
+        .hint {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--txt-mid);
+            font-size: 10px;
+        }
+
+        .hint kbd {
+            background: var(--border);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 9px;
+            color: var(--txt-hi);
+            font-family: inherit;
+            font-weight: 600;
+        }
+
+        /* Opacity / opacity controls (top-right of 3D panel) */
+        .ctrl3d {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: all;
+        }
+
+        .ctrl3d-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(7, 11, 20, .8);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 5px 10px;
+            backdrop-filter: blur(4px);
+        }
+
+        .ctrl3d label {
+            font-size: 10px;
+            color: var(--txt-mid);
+            font-weight: 600;
+            letter-spacing: .5px;
+            white-space: nowrap;
+        }
+
+        .ctrl3d input[type=range] {
+            width: 80px;
+            height: 3px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--border);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .ctrl3d input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow);
+        }
+
+        /* ─── Orthogonal panels (right column) ───────────────────────── */
+        .ortho-col {
+            width: var(--ortho-w);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
+
+        .slice-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .slice-card:last-child {
+            border-bottom: none;
+        }
+
+        /* Card header */
+        .card-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-lo);
+            flex-shrink: 0;
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .dot-ax {
+            background: var(--axial);
+            box-shadow: 0 0 5px var(--axial);
+        }
+
+        .dot-co {
+            background: var(--coronal);
+            box-shadow: 0 0 5px var(--coronal);
+        }
+
+        .dot-sa {
+            background: var(--sagittal);
+            box-shadow: 0 0 5px var(--sagittal);
+        }
+
+        .card-meta {
+            font-size: 10px;
+            color: var(--txt-lo);
+            font-family: monospace;
+        }
+
+        /* Canvas wrap */
+        .canvas-wrap {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .canvas-wrap canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Loading overlay */
+        .loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(7, 11, 20, .75);
+            font-size: 11px;
+            color: var(--txt-mid);
+        }
+
+        .spin {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Slice footer – slider */
+        .card-ftr {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            flex-shrink: 0;
+        }
+
+        .card-ftr .lbl {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .8px;
+            color: var(--txt-lo);
+        }
+
+        .slider {
+            flex: 1;
+            height: 3px;
+            -webkit-appearance: none;
+            appearance: none;
+            outline: none;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+
+        .slider-ax {
+            background: linear-gradient(to right, var(--axial) 0%, var(--axial) var(--v, 50%), #1e2a42 var(--v, 50%), #1e2a42 100%);
+        }
+
+        .slider-co {
+            background: linear-gradient(to right, var(--coronal) 0%, var(--coronal) var(--v, 50%), #1e2a42 var(--v, 50%), #1e2a42 100%);
+        }
+
+        .slider-sa {
+            background: linear-gradient(to right, var(--sagittal) 0%, var(--sagittal) var(--v, 50%), #1e2a42 var(--v, 50%), #1e2a42 100%);
+        }
+
+        .slider-ax::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--axial);
+            box-shadow: 0 0 5px var(--axial);
+        }
+
+        .slider-co::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--coronal);
+            box-shadow: 0 0 5px var(--coronal);
+        }
+
+        .slider-sa::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--sagittal);
+            box-shadow: 0 0 5px var(--sagittal);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: none;
+        }
+
+        .idx-label {
+            font-size: 10px;
+            font-family: monospace;
+            color: var(--txt-mid);
+            min-width: 28px;
+            text-align: right;
+        }
+
+        /* Auto-play button */
+        .play-btn {
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--txt-mid);
+            cursor: pointer;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+            flex-shrink: 0;
+        }
+
+        .play-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .play-btn.playing {
+            border-color: var(--warning);
+            color: var(--warning);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+   STATUS BAR
+   ═══════════════════════════════════════════════════════════════ */
+        .statusbar {
+            height: var(--status-h);
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 20px;
+            font-size: 10px;
+            color: var(--txt-lo);
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .3;
+            }
+        }
+
+        .status-msg {
+            color: var(--txt-mid);
+        }
+
+        .status-sep {
+            color: var(--border);
+        }
+
+        .fps {
+            font-family: monospace;
+            color: var(--txt-lo);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ═══════════════ TOP BAR ═══════════════ -->
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">🧠</div>
+            <div class="brand-text">
+                <div class="brand-name">Brain 3-D Visualizer</div>
+                <div class="brand-sub">Medical Imaging System</div>
+            </div>
+        </div>
+
+        <!-- Mode toggle -->
+        <div class="seg-ctrl">
+            <button class="seg-btn active" id="btnGray" onclick="App.setMode('gray')">Grayscale</button>
+            <button class="seg-btn" id="btnColor" onclick="App.setMode('color')">Colorized</button>
+        </div>
+
+        <!-- Plane visibility -->
+        <div class="vis-group">
+            <button class="vis-btn ax active" id="visAx" title="Toggle Axial plane"
+                onclick="App.togglePlane('axial')">A</button>
+            <button class="vis-btn co active" id="visCo" title="Toggle Coronal plane"
+                onclick="App.togglePlane('coronal')">C</button>
+            <button class="vis-btn sa active" id="visSa" title="Toggle Sagittal plane"
+                onclick="App.togglePlane('sagittal')">S</button>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <span class="chip chip-neutral" id="chipVolume">…</span>
+        <span class="chip" id="chipModel">…</span>
+        <span class="chip chip-neutral" id="chipDevice">…</span>
+    </header>
+
+    <!-- ═══════════════ MAIN WORKSPACE ═══════════════ -->
+    <div class="workspace">
+
+        <!-- 3-D Viewer -->
+        <div class="panel3d" id="panel3d">
+            <canvas id="canvas3d"></canvas>
+
+            <div class="overlay-tl">
+                <span class="panel-tag">3D Volume</span>
+            </div>
+
+            <!-- Plane opacity controls -->
+            <div class="ctrl3d">
+                <div class="ctrl3d-row">
+                    <label>OPACITY</label>
+                    <input type="range" id="opacityCtrl" min="10" max="100" value="88"
+                        oninput="App.setPlaneOpacity(this.value/100)">
+                </div>
+                <div class="ctrl3d-row">
+                    <label>AUTO-ROT</label>
+                    <button class="play-btn" id="autoRotBtn" onclick="App.toggleAutoRotate()"
+                        title="Toggle auto rotation">▶</button>
+                </div>
+            </div>
+
+            <!-- Axis legend -->
+            <div class="axis-legend">
+                <div class="axis-item">
+                    <div class="axis-line" style="background:var(--sagittal)"></div> L/R (Sagittal)
+                </div>
+                <div class="axis-item">
+                    <div class="axis-line" style="background:var(--axial)"></div> S/I (Axial)
+                </div>
+                <div class="axis-item">
+                    <div class="axis-line" style="background:var(--coronal)"></div> A/P (Coronal)
+                </div>
+            </div>
+
+            <div class="hints">
+                <span class="hint"><kbd>Drag</kbd> Rotate</span>
+                <span class="hint"><kbd>Scroll</kbd> Zoom</span>
+                <span class="hint"><kbd>R-Drag</kbd> Pan</span>
+                <span class="hint"><kbd>Tab</kbd> Focus plane</span>
+                <span class="hint"><kbd>↑↓</kbd> Scroll slice</span>
+            </div>
+        </div>
+
+        <!-- ═══ Orthogonal Panels (right column) ═══ -->
+        <div class="ortho-col">
+
+            <!-- AXIAL -->
+            <div class="slice-card">
+                <div class="card-hdr">
+                    <div class="card-title"><span class="dot dot-ax"></span>Axial</div>
+                    <span class="card-meta">Transverse · Superior View</span>
+                </div>
+                <div class="canvas-wrap" id="wrapAxial">
+                    <canvas id="canvasAxial"></canvas>
+                    <div class="loading" id="loadAxial">
+                        <div class="spin"></div>Loading…
+                    </div>
+                </div>
+                <div class="card-ftr">
+                    <span class="lbl">SLICE</span>
+                    <input type="range" id="sliderAxial" class="slider slider-ax" min="0" max="59" value="30"
+                        oninput="App.onSlider('axial', this)">
+                    <button class="play-btn" id="playAxial" onclick="App.togglePlay('axial')"
+                        title="Auto-scroll">▶</button>
+                    <span class="idx-label" id="idxAxial">30</span>
+                </div>
+            </div>
+
+            <!-- CORONAL -->
+            <div class="slice-card">
+                <div class="card-hdr">
+                    <div class="card-title"><span class="dot dot-co"></span>Coronal</div>
+                    <span class="card-meta">Frontal · Anterior View</span>
+                </div>
+                <div class="canvas-wrap" id="wrapCoronal">
+                    <canvas id="canvasCoronal"></canvas>
+                    <div class="loading" id="loadCoronal">
+                        <div class="spin"></div>Loading…
+                    </div>
+                </div>
+                <div class="card-ftr">
+                    <span class="lbl">SLICE</span>
+                    <input type="range" id="sliderCoronal" class="slider slider-co" min="0" max="127" value="64"
+                        oninput="App.onSlider('coronal', this)">
+                    <button class="play-btn" id="playCoronal" onclick="App.togglePlay('coronal')"
+                        title="Auto-scroll">▶</button>
+                    <span class="idx-label" id="idxCoronal">64</span>
+                </div>
+            </div>
+
+            <!-- SAGITTAL -->
+            <div class="slice-card">
+                <div class="card-hdr">
+                    <div class="card-title"><span class="dot dot-sa"></span>Sagittal</div>
+                    <span class="card-meta">Lateral · Left View</span>
+                </div>
+                <div class="canvas-wrap" id="wrapSagittal">
+                    <canvas id="canvasSagittal"></canvas>
+                    <div class="loading" id="loadSagittal">
+                        <div class="spin"></div>Loading…
+                    </div>
+                </div>
+                <div class="card-ftr">
+                    <span class="lbl">SLICE</span>
+                    <input type="range" id="sliderSagittal" class="slider slider-sa" min="0" max="127" value="64"
+                        oninput="App.onSlider('sagittal', this)">
+                    <button class="play-btn" id="playSagittal" onclick="App.togglePlay('sagittal')"
+                        title="Auto-scroll">▶</button>
+                    <span class="idx-label" id="idxSagittal">64</span>
+                </div>
+            </div>
+
+        </div><!-- /ortho-col -->
+    </div><!-- /workspace -->
+
+    <!-- ═══════════════ STATUS BAR ═══════════════ -->
+    <footer class="statusbar">
+        <div class="status-dot" id="dotStatus"></div>
+        <span class="status-msg" id="msgStatus">Initialising…</span>
+        <span class="status-sep">|</span>
+        <span class="fps" id="fpsCounter">FPS: —</span>
+        <span class="status-sep">|</span>
+        <span>U-Net CIE-LAB &bull; PyTorch &bull; Three.js r128 WebGL</span>
+        <span class="status-sep">|</span>
+        <span id="coordBar">Ax:— Co:— Sa:—</span>
+    </footer>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        "use strict";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // App — main namespace
+        // ═══════════════════════════════════════════════════════════════════════════
+        const App = (() => {
+
+            // ── State ───────────────────────────────────────────────────────────────
+            const S = {
+                mode: 'gray',                          // 'gray' | 'color'
+                idx: { axial: 30, coronal: 64, sagittal: 64 },
+                maxIdx: { axial: 59, coronal: 127, sagittal: 127 },
+                vol: { depth: 60, height: 128, width: 128 },
+                vis: { axial: true, coronal: true, sagittal: true },
+                opacity: 0.88,
+                playing: { axial: false, coronal: false, sagittal: false },
+                autoRotate: false,
+                focusedPlane: 'axial',
+                fetchTimer: {},
+                playTimer: {},
+            };
+
+            const API = '';   // same-origin (Flask serves both API + frontend)
+
+            // ── DOM refs ─────────────────────────────────────────────────────────────
+            const $ = id => document.getElementById(id);
+
+            // ── Three.js viewer ──────────────────────────────────────────────────────
+            let V3D = null;
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // Three.js 3-D Viewer
+            // ══════════════════════════════════════════════════════════════════════════
+            class Viewer3D {
+                constructor(canvas) {
+                    this.canvas = canvas;
+                    this._planes = {};
+                    this._textures = {};
+                    this._vis = { axial: true, coronal: true, sagittal: true };
+                    this._orbit = {
+                        theta: Math.PI * 0.38,
+                        phi: Math.PI * 0.30,
+                        radius: 2.6,
+                        target: new THREE.Vector3(0, 0, 0),
+                        btnDown: -1,
+                        prevX: 0, prevY: 0,
+                        autoRotate: false,
+                    };
+                    this._norm = { D: 1, H: 1, W: 1 };
+                    this._dim = { D: 60, H: 128, W: 128 };
+                    this._opacity = 0.88;
+                    this._lastT = 0;
+                    this._fpsSmooth = 60;
+                    this._build();
+                }
+
+                // ── Scene setup ─────────────────────────────────────────────────────────
+                _build() {
+                    const c = this.canvas;
+                    // Renderer
+                    this.renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: false });
+                    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                    this.renderer.setClearColor(0x070b14, 1);
+                    this._resize();
+
+                    // Scene
+                    this.scene = new THREE.Scene();
+
+                    // Camera
+                    this.camera = new THREE.PerspectiveCamera(42, c.clientWidth / c.clientHeight, 0.005, 50);
+
+                    // Lighting (for when we add mesh geometry)
+                    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+                    sun.position.set(2, 3, 4);
+                    this.scene.add(sun);
+
+                    // Fixed geometry
+                    this._addBoundingBox();
+                    this._addGridFloor();
+                    this._addAxes();
+
+                    // Orbit controls
+                    this._bindOrbit();
+
+                    // Resize
+                    window.addEventListener('resize', () => this._resize());
+
+                    // Animate
+                    this._raf();
+                }
+
+                _addBoundingBox() {
+                    const geo = new THREE.BoxGeometry(1, 1, 1);
+                    const edge = new THREE.EdgesGeometry(geo);
+
+                    // Outer wireframe
+                    this.scene.add(new THREE.LineSegments(edge,
+                        new THREE.LineBasicMaterial({ color: 0x1e3a5f, linewidth: 1 })));
+
+                    // Soft inner shell (depth cue)
+                    const inner = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+                        new THREE.MeshBasicMaterial({
+                            color: 0x0a1628, transparent: true, opacity: 0.12, side: THREE.BackSide
+                        }));
+                    this.scene.add(inner);
+                }
+
+                _addGridFloor() {
+                    const g = new THREE.GridHelper(2, 12, 0x0d1e35, 0x0d1e35);
+                    g.position.y = -0.5;
+                    this.scene.add(g);
+                }
+
+                _addAxes() {
+                    const mkLine = (dir, clr) => {
+                        const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(...dir).multiplyScalar(0.65)];
+                        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                        return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: clr }));
+                    };
+                    this.scene.add(mkLine([1, 0, 0], 0xf04040)); // X = sagittal = red
+                    this.scene.add(mkLine([0, 1, 0], 0x3b7dff)); // Y = axial    = blue
+                    this.scene.add(mkLine([0, 0, 1], 0x21c96e)); // Z = coronal  = green
+                }
+
+                // ── Plane initialisation ─────────────────────────────────────────────────
+                initPlanes(info) {
+                    const { depth: D, height: H, width: W } = info;
+                    this._dim = { D, H, W };
+
+                    const maxDim = Math.max(D, H, W);
+                    this._norm = { D: D / maxDim, H: H / maxDim, W: W / maxDim };
+                    const { D: nD, H: nH, W: nW } = this._norm;
+
+                    // Centre the scene so the box straddles the origin
+                    this.scene.position.set(-nW / 2, -nD / 2, -nH / 2);
+
+                    // Placeholder canvas texture
+                    const placeholder = clr => {
+                        const cv = document.createElement('canvas');
+                        cv.width = cv.height = 4;
+                        const ctx = cv.getContext('2d');
+                        ctx.fillStyle = '#050a14'; ctx.fillRect(0, 0, 4, 4);
+                        const t = new THREE.CanvasTexture(cv);
+                        return t;
+                    };
+
+                    const cfg = [
+                        // Axial: horizontal plane (faces up), spans XZ
+                        {
+                            name: 'axial',
+                            geo: new THREE.PlaneGeometry(nW, nH),
+                            rotX: -Math.PI / 2, rotY: 0, rotZ: 0,
+                            posGetter: idx => ({ x: nW / 2, y: (idx / (D - 1)) * nD, z: nH / 2 }),
+                            color: 0x3b7dff,
+                        },
+                        // Coronal: vertical plane facing +Z, spans XY
+                        {
+                            name: 'coronal',
+                            geo: new THREE.PlaneGeometry(nW, nD),
+                            rotX: 0, rotY: 0, rotZ: 0,
+                            posGetter: idx => ({ x: nW / 2, y: nD / 2, z: (idx / (H - 1)) * nH }),
+                            color: 0x21c96e,
+                        },
+                        // Sagittal: vertical plane facing +X, spans ZY
+                        {
+                            name: 'sagittal',
+                            geo: new THREE.PlaneGeometry(nH, nD),
+                            rotX: 0, rotY: Math.PI / 2, rotZ: 0,
+                            posGetter: idx => ({ x: (idx / (W - 1)) * nW, y: nD / 2, z: nH / 2 }),
+                            color: 0xf04040,
+                        },
+                    ];
+
+                    cfg.forEach(({ name, geo, rotX, rotY, rotZ, posGetter, color }) => {
+                        const tex = placeholder(color);
+                        const mat = new THREE.MeshBasicMaterial({
+                            map: tex, side: THREE.DoubleSide, transparent: true, opacity: this._opacity,
+                        });
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.rotation.set(rotX, rotY, rotZ);
+
+                        const p = posGetter(this._dim[name === 'axial' ? 'D' : name === 'coronal' ? 'H' : 'W'] / 2);
+                        mesh.position.set(p.x, p.y, p.z);
+
+                        this.scene.add(mesh);
+                        this._planes[name] = { mesh, mat, posGetter, dim: name === 'axial' ? 'D' : name === 'coronal' ? 'H' : 'W' };
+                        this._textures[name] = tex;
+                    });
+                }
+
+                // ── Plane updates ────────────────────────────────────────────────────────
+                updatePosition(plane, idx) {
+                    const p = this._planes[plane];
+                    if (!p) return;
+                    const pos = p.posGetter(idx);
+                    p.mesh.position.set(pos.x, pos.y, pos.z);
+                }
+
+                updateTexture(plane, dataUrl) {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Draw into canvas so we control orientation
+                        const cv = document.createElement('canvas');
+                        cv.width = img.width;
+                        cv.height = img.height;
+                        const ctx = cv.getContext('2d');
+
+                        // For coronal and sagittal, flip vertically so Superior is up in 3D
+                        if (plane === 'coronal' || plane === 'sagittal') {
+                            ctx.translate(0, img.height);
+                            ctx.scale(1, -1);
+                        }
+                        ctx.drawImage(img, 0, 0);
+
+                        const newTex = new THREE.CanvasTexture(cv);
+                        newTex.needsUpdate = true;
+                        const p = this._planes[plane];
+                        if (!p) return;
+                        p.mat.map = newTex;
+                        p.mat.needsUpdate = true;
+
+                        // Dispose old texture
+                        const old = this._textures[plane];
+                        if (old) old.dispose();
+                        this._textures[plane] = newTex;
+                    };
+                    img.src = dataUrl;
+                }
+
+                setPlaneVisible(plane, visible) {
+                    const p = this._planes[plane];
+                    if (p) p.mesh.visible = visible;
+                }
+
+                setPlaneOpacity(v) {
+                    this._opacity = v;
+                    Object.values(this._planes).forEach(p => {
+                        p.mat.opacity = v;
+                        p.mat.needsUpdate = true;
+                    });
+                }
+
+                setAutoRotate(v) { this._orbit.autoRotate = v; }
+
+                // ── Orbit controls ───────────────────────────────────────────────────────
+                _bindOrbit() {
+                    const c = this.canvas;
+                    const o = this._orbit;
+
+                    c.addEventListener('mousedown', e => {
+                        o.btnDown = e.button;
+                        o.prevX = e.clientX; o.prevY = e.clientY;
+                    });
+                    document.addEventListener('mouseup', () => o.btnDown = -1);
+                    c.addEventListener('mouseleave', () => o.btnDown = -1);
+                    document.addEventListener('mousemove', e => this._onMove(e.clientX, e.clientY, e));
+
+                    c.addEventListener('wheel', e => {
+                        e.preventDefault();
+                        o.radius = Math.max(0.4, Math.min(9, o.radius * (1 + e.deltaY * 0.0008)));
+                    }, { passive: false });
+
+                    c.addEventListener('contextmenu', e => e.preventDefault());
+
+                    // Touch
+                    let pinchDist = 0;
+                    c.addEventListener('touchstart', e => {
+                        if (e.touches.length === 1) {
+                            o.btnDown = 0;
+                            o.prevX = e.touches[0].clientX;
+                            o.prevY = e.touches[0].clientY;
+                        } else if (e.touches.length === 2) {
+                            o.btnDown = -1;
+                            const dx = e.touches[0].clientX - e.touches[1].clientX;
+                            const dy = e.touches[0].clientY - e.touches[1].clientY;
+                            pinchDist = Math.sqrt(dx * dx + dy * dy);
+                        }
+                    });
+                    c.addEventListener('touchend', () => o.btnDown = -1);
+                    c.addEventListener('touchmove', e => {
+                        e.preventDefault();
+                        if (e.touches.length === 1) {
+                            this._onMove(e.touches[0].clientX, e.touches[0].clientY, null);
+                        } else if (e.touches.length === 2) {
+                            const dx = e.touches[0].clientX - e.touches[1].clientX;
+                            const dy = e.touches[0].clientY - e.touches[1].clientY;
+                            const d = Math.sqrt(dx * dx + dy * dy);
+                            if (pinchDist > 0) o.radius = Math.max(0.4, Math.min(9, o.radius * (pinchDist / d)));
+                            pinchDist = d;
+                        }
+                    }, { passive: false });
+                }
+
+                _onMove(cx, cy, e) {
+                    const o = this._orbit;
+                    if (o.btnDown < 0) return;
+                    const dx = cx - o.prevX;
+                    const dy = cy - o.prevY;
+                    o.prevX = cx; o.prevY = cy;
+
+                    if (o.btnDown === 0) {                  // left-drag → rotate
+                        o.theta -= dx * 0.005;
+                        o.phi = Math.max(0.08, Math.min(Math.PI - 0.08, o.phi - dy * 0.005));
+                    } else if (o.btnDown === 2) {           // right-drag → pan
+                        const speed = o.radius * 0.0007;
+                        const right = new THREE.Vector3().crossVectors(
+                            this.camera.getWorldDirection(new THREE.Vector3()), this.camera.up).normalize();
+                        o.target.addScaledVector(right, -dx * speed);
+                        o.target.addScaledVector(this.camera.up, dy * speed);
+                    }
+                }
+
+                _updateCamera() {
+                    const o = this._orbit;
+                    if (o.autoRotate) o.theta += 0.003;
+                    const { theta, phi, radius, target } = o;
+                    this.camera.position.set(
+                        target.x + radius * Math.sin(phi) * Math.sin(theta),
+                        target.y + radius * Math.cos(phi),
+                        target.z + radius * Math.sin(phi) * Math.cos(theta),
+                    );
+                    this.camera.lookAt(target);
+                }
+
+                _resize() {
+                    const c = this.canvas;
+                    const p = c.parentElement;
+                    if (!p) return;
+                    const w = p.clientWidth, h = p.clientHeight;
+                    this.renderer.setSize(w, h, false);
+                    if (this.camera) {
+                        this.camera.aspect = w / h;
+                        this.camera.updateProjectionMatrix();
+                    }
+                }
+
+                _raf() {
+                    requestAnimationFrame(t => {
+                        // FPS
+                        if (this._lastT) {
+                            const dt = t - this._lastT;
+                            this._fpsSmooth = this._fpsSmooth * 0.9 + (1000 / dt) * 0.1;
+                            $('fpsCounter').textContent = `FPS: ${Math.round(this._fpsSmooth)}`;
+                        }
+                        this._lastT = t;
+                        this._updateCamera();
+                        this.renderer.render(this.scene, this.camera);
+                        this._raf();
+                    });
+                }
+            }
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // Slice panel drawing
+            // ══════════════════════════════════════════════════════════════════════════
+            const XHAIR_COLORS = { axial: '#3b7dff', coronal: '#21c96e', sagittal: '#f04040' };
+
+            function renderSliceCanvas(plane, dataUrl) {
+                const canvas = $(`canvas${plane.charAt(0).toUpperCase() + plane.slice(1)}`);
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    // Crosshairs
+                    const clr = XHAIR_COLORS[plane] + 'aa';
+                    ctx.strokeStyle = clr;
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath(); ctx.moveTo(img.width / 2, 0); ctx.lineTo(img.width / 2, img.height); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, img.height / 2); ctx.lineTo(img.width, img.height / 2); ctx.stroke();
+                    ctx.setLineDash([]);
+                    // Corner annotations
+                    ctx.font = '10px monospace'; ctx.fillStyle = clr;
+                    if (plane === 'axial') { ctx.fillText('R', 4, 14); ctx.fillText('L', img.width - 14, 14); }
+                    if (plane === 'coronal') { ctx.fillText('L', 4, 14); ctx.fillText('R', img.width - 14, 14); ctx.fillText('S', img.width / 2 - 6, 13); ctx.fillText('I', img.width / 2 - 4, img.height - 4); }
+                    if (plane === 'sagittal') { ctx.fillText('A', 4, 14); ctx.fillText('P', img.width - 14, 14); ctx.fillText('S', img.width / 2 - 6, 13); ctx.fillText('I', img.width / 2 - 4, img.height - 4); }
+                };
+                img.src = dataUrl;
+            }
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // API helpers
+            // ══════════════════════════════════════════════════════════════════════════
+            async function apiFetch(url) {
+                const r = await fetch(API + url);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            }
+
+            function setStatus(msg, ok = true) {
+                $('msgStatus').textContent = msg;
+                $('dotStatus').style.background = ok ? 'var(--success)' : 'var(--danger)';
+            }
+
+            function showLoading(plane, on) {
+                const el = $(`load${plane.charAt(0).toUpperCase() + plane.slice(1)}`);
+                if (el) el.style.display = on ? 'flex' : 'none';
+            }
+
+            function updateSliderFill(plane, slider) {
+                const pct = (parseInt(slider.value) / parseInt(slider.max) * 100).toFixed(1) + '%';
+                slider.style.setProperty('--v', pct);
+            }
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // Slice fetching
+            // ══════════════════════════════════════════════════════════════════════════
+            async function fetchSlice(plane, idx) {
+                showLoading(plane, true);
+                try {
+                    const data = await apiFetch(
+                        `/api/slice?plane=${plane}&idx=${idx}&mode=${S.mode}`
+                    );
+                    renderSliceCanvas(plane, data.image);
+                    if (V3D) V3D.updateTexture(plane, data.image);
+                } catch (e) {
+                    setStatus(`Error: ${e.message}`, false);
+                } finally {
+                    showLoading(plane, false);
+                }
+            }
+
+            function scheduleFetch(plane, idx) {
+                clearTimeout(S.fetchTimer[plane]);
+                S.fetchTimer[plane] = setTimeout(() => fetchSlice(plane, idx), 90);
+            }
+
+            function fetchAll() {
+                ['axial', 'coronal', 'sagittal'].forEach(p => fetchSlice(p, S.idx[p]));
+            }
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // Public API
+            // ══════════════════════════════════════════════════════════════════════════
+            function setMode(mode) {
+                S.mode = mode;
+                $('btnGray').classList.toggle('active', mode === 'gray');
+                $('btnColor').classList.toggle('active', mode === 'color');
+                fetchAll();
+            }
+
+            function togglePlane(plane) {
+                S.vis[plane] = !S.vis[plane];
+                const ids = { axial: 'Ax', coronal: 'Co', sagittal: 'Sa' };
+                $(`vis${ids[plane]}`).classList.toggle('active', S.vis[plane]);
+                if (V3D) V3D.setPlaneVisible(plane, S.vis[plane]);
+            }
+
+            function setPlaneOpacity(v) {
+                S.opacity = v;
+                if (V3D) V3D.setPlaneOpacity(v);
+            }
+
+            function toggleAutoRotate() {
+                S.autoRotate = !S.autoRotate;
+                if (V3D) V3D.setAutoRotate(S.autoRotate);
+                $('autoRotBtn').classList.toggle('playing', S.autoRotate);
+                $('autoRotBtn').textContent = S.autoRotate ? '⏹' : '▶';
+            }
+
+            function onSlider(plane, input) {
+                const idx = parseInt(input.value);
+                S.idx[plane] = idx;
+                $(`idx${plane.charAt(0).toUpperCase() + plane.slice(1)}`).textContent = idx;
+                updateSliderFill(plane, input);
+                if (V3D) V3D.updatePosition(plane, idx);
+                scheduleFetch(plane, idx);
+                $('coordBar').textContent = `Ax:${S.idx.axial} Co:${S.idx.coronal} Sa:${S.idx.sagittal}`;
+            }
+
+            // Auto-play per plane
+            function togglePlay(plane) {
+                S.playing[plane] = !S.playing[plane];
+                const ids = { axial: 'Axial', coronal: 'Coronal', sagittal: 'Sagittal' };
+                const btn = $(`play${ids[plane]}`);
+                btn.classList.toggle('playing', S.playing[plane]);
+                btn.textContent = S.playing[plane] ? '⏹' : '▶';
+
+                clearInterval(S.playTimer[plane]);
+                if (!S.playing[plane]) return;
+
+                const slider = $(`slider${ids[plane]}`);
+                S.playTimer[plane] = setInterval(() => {
+                    let next = S.idx[plane] + 1;
+                    if (next > S.maxIdx[plane]) next = 0;
+                    slider.value = next;
+                    onSlider(plane, slider);
+                }, 200);
+            }
+
+            // ── Keyboard navigation ───────────────────────────────────────────────────
+            document.addEventListener('keydown', e => {
+                if (e.target.tagName === 'INPUT') return;
+
+                // Tab cycles focused plane
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const planes = ['axial', 'coronal', 'sagittal'];
+                    const i = planes.indexOf(S.focusedPlane);
+                    S.focusedPlane = planes[(i + 1) % planes.length];
+                    setStatus(`Focused: ${S.focusedPlane} (↑↓ to scroll)`);
+                    return;
+                }
+
+                const delta = (e.key === 'ArrowUp' || e.key === 'ArrowRight') ? 1
+                    : (e.key === 'ArrowDown' || e.key === 'ArrowLeft') ? -1 : 0;
+                if (!delta) return;
+                e.preventDefault();
+
+                const plane = S.focusedPlane;
+                const ids = { axial: 'Axial', coronal: 'Coronal', sagittal: 'Sagittal' };
+                const slider = $(`slider${ids[plane]}`);
+                const next = Math.max(0, Math.min(S.maxIdx[plane], S.idx[plane] + delta));
+                slider.value = next;
+                onSlider(plane, slider);
+            });
+
+            // ══════════════════════════════════════════════════════════════════════════
+            // Initialisation
+            // ══════════════════════════════════════════════════════════════════════════
+            async function init() {
+                setStatus('Connecting to backend…');
+
+                try {
+                    const info = await apiFetch('/api/info');
+                    const { depth: D, height: H, width: W, has_model, device } = info;
+                    S.vol = { depth: D, height: H, width: W };
+
+                    // Update volume chip
+                    $('chipVolume').textContent = `${D}×${H}×${W}`;
+
+                    // Model chip
+                    const mc = $('chipModel');
+                    if (has_model) {
+                        mc.textContent = 'U-Net ✓'; mc.className = 'chip chip-ok';
+                    } else {
+                        mc.textContent = 'Colormap'; mc.className = 'chip chip-warn';
+                    }
+
+                    // Device chip
+                    $('chipDevice').textContent = device || '—';
+
+                    // Configure sliders
+                    const configs = {
+                        axial: { max: D - 1, val: Math.floor(D / 2) },
+                        coronal: { max: H - 1, val: Math.floor(H / 2) },
+                        sagittal: { max: W - 1, val: Math.floor(W / 2) },
+                    };
+                    const ids = { axial: 'Axial', coronal: 'Coronal', sagittal: 'Sagittal' };
+
+                    Object.entries(configs).forEach(([plane, { max, val }]) => {
+                        const slider = $(`slider${ids[plane]}`);
+                        slider.max = max;
+                        slider.value = val;
+                        S.idx[plane] = val;
+                        S.maxIdx[plane] = max;
+                        $(`idx${ids[plane]}`).textContent = val;
+                        updateSliderFill(plane, slider);
+                    });
+
+                    // Init Three.js viewer
+                    setStatus('Building 3-D scene…');
+                    V3D = new Viewer3D($('canvas3d'));
+                    V3D.initPlanes(info);
+
+                    // Load initial slices
+                    setStatus('Loading initial slices…');
+                    await fetchAll();
+
+                    const srcLabel = has_model ? 'U-Net CIE-LAB colorization' : 'Medical colormap';
+                    setStatus(`Ready — ${D}×${H}×${W} volume · ${srcLabel}`);
+
+                } catch (err) {
+                    setStatus(`Connection error: ${err.message}`, false);
+                    console.error(err);
+                }
+            }
+
+            return { setMode, togglePlane, setPlaneOpacity, toggleAutoRotate, onSlider, togglePlay, init };
+
+        })();
+
+        // Start
+        App.init();
+    </script>
+</body>
+
+</html>

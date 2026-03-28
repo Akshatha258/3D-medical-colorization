@@ -1,0 +1,12 @@
+flask>=2.3.0
+flask-cors>=4.0.0
+numpy>=1.24.0
+Pillow>=10.0.0
+scipy>=1.11.0
+scikit-image>=0.21.0
+nibabel>=5.1.0
+tqdm>=4.65.0
+imageio>=2.31.0
+plotly>=5.15.0
+nilearn>=0.10.0
+matplotlib>=3.7.0
